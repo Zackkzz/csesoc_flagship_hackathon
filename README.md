@@ -232,4 +232,4 @@ Full contracts: [`docs/API.md`](docs/API.md)
 
 ## License
 
-Hackathon project — use and modify freely for the event.
+[MIT](LICENSE) — free to use, modify, and share, including commercially, with attribution.
