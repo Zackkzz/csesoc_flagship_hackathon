@@ -98,11 +98,25 @@ Compression-first research demo? ──yes──▶ Stack B
 
 ## Approval
 
-- [ ] Approve **Stack R** as default  
-- [ ] Or specify: Stack A / B / C / D  
+- [x] **Stack R** approved (aligned with Q1=D, Q2=D, Q3=C)  
+- [ ] Stretch only if time: Stack D (browser extension)
 
-Preferred cheap processing model IDs (fill in):
+### Processing models (Q3=C hybrid)
 
-- Improver: `________________`
-- Judge: `________________`
-- Local fallback: `________________`
+| Role | Default (cloud) | Fallback (local) |
+|------|-----------------|------------------|
+| Improver | `gpt-4.1-mini` (or Haiku / Flash) | Ollama `qwen2.5:7b` |
+| Judge | same as Improver | same Ollama model |
+| Strip assist | heuristic (+ optional mini) | heuristic only / Ollama |
+| Target AI | user’s cloud frontier (or local) | unchanged |
+
+Env sketch:
+
+```
+PROCESSING_PROVIDER=auto   # auto | openai | anthropic | ollama
+IMPROVER_MODEL=gpt-4.1-mini
+JUDGE_MODEL=gpt-4.1-mini
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b
+OPENAI_API_KEY=
+```

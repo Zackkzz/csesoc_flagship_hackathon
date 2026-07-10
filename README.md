@@ -54,8 +54,10 @@
 
 ## Status (per Requirement.md Immediate Instructions)
 
-1. Clarifying questions → [`docs/CLARIFYING_QUESTIONS.md`](docs/CLARIFYING_QUESTIONS.md)  
-2. Phased project plan → [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md)  
-3. Architecture & tools for approval → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + [`docs/TECH_STACKS.md`](docs/TECH_STACKS.md)  
+1. Clarifying questions → ✅ **Q1=D, Q2=D, Q3=C** — [`docs/CLARIFYING_QUESTIONS.md`](docs/CLARIFYING_QUESTIONS.md)  
+2. Phased project plan → ✅ [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md) (unblocked at **M0**)  
+3. Architecture & tools → ✅ Stack R locked — [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + [`docs/TECH_STACKS.md`](docs/TECH_STACKS.md)  
 
-**No application code in this package** — documents only until you approve architecture and answer clarifying questions.
+**Locked MVP:** history upload + live proxy · web UI first (extension stretch) · cloud mini + Ollama hybrid processing.
+
+Docs-only until you ask to start coding.

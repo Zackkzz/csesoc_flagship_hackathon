@@ -1,11 +1,14 @@
-# Technical Architecture (for approval)
+# Technical Architecture
 
-Per [`Requirement.md`](../Requirement.md) Immediate Instructions §3.  
-**Please approve or request changes before any application code is written.**
+Per [`Requirement.md`](../Requirement.md) Immediate Instructions §3.
+
+**Clarifying answers locked:** Q1=D, Q2=D, Q3=C — see [`CLARIFYING_QUESTIONS.md`](CLARIFYING_QUESTIONS.md).  
+**Stack:** R (FastAPI + React + SQLite) — see [`TECH_STACKS.md`](TECH_STACKS.md).  
+**Status:** ✅ Decisions applied — ready to implement when you say go (docs-only until then unless you request code).
 
 ---
 
-## Proposed system name
+## System name
 
 **PromptLens** — prompting coach + pre-call token firewall.
 
@@ -141,16 +144,22 @@ Full alternatives: [`TECH_STACKS.md`](TECH_STACKS.md).
 
 ---
 
+## Locked from clarifying answers
+
+| Decision | MVP requirement |
+|----------|-----------------|
+| Q1=D | History **upload** + **proxy** both in MVP (proxy is M6 must-ship) |
+| Q2=D | **Web app** is primary UX; extension = stretch only |
+| Q3=C | Processing: **cloud mini default**, **Ollama fallback**; never frontier for Improve/Judge/Strip |
+
 ## Approval checklist
 
-Reply with approvals or edits:
+- [x] Overall pipeline (Score → Improve? → Strip? → Call)  
+- [x] FastAPI + React + SQLite (Stack R)  
+- [x] Cheap models only for Improve/Judge/Strip (hybrid cloud + Ollama)  
+- [x] Heuristic Strip in MVP; LLMLingua as stretch  
+- [x] OpenAI-compatible proxy **in MVP** (required by Q1=D)  
 
-- [ ] Overall pipeline (Score → Improve? → Strip? → Call)  
-- [ ] FastAPI + React + SQLite as default stack  
-- [ ] Cheap models only for Improve/Judge/Strip  
-- [ ] Heuristic Strip in MVP; LLMLingua as stretch  
-- [ ] OpenAI-compatible proxy in MVP (or defer to stretch?)  
+**Status:** ✅ Locked with clarifying answers  
 
-**Status:** ⏳ Awaiting team approval  
-
-Once approved + [`CLARIFYING_QUESTIONS.md`](CLARIFYING_QUESTIONS.md) answered → implement per [`PROJECT_PLAN.md`](PROJECT_PLAN.md).
+Implement per [`PROJECT_PLAN.md`](PROJECT_PLAN.md) when the team starts coding.

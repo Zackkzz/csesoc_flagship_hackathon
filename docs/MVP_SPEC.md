@@ -1,6 +1,22 @@
 # MVP Specification
 
-Traceability to [`Requirement.md`](../Requirement.md) Key Features.
+Traceability to [`Requirement.md`](../Requirement.md) Key Features.  
+**Locked decisions:** Q1=D · Q2=D · Q3=C · Stack R.
+
+---
+
+## Scope locks
+
+| Area | In MVP | Stretch |
+|------|--------|---------|
+| History upload (JSON / export) | ✅ | — |
+| OpenAI-compatible proxy | ✅ (M6) | — |
+| React web dashboard + playground | ✅ | — |
+| Browser extension | — | ✅ after M6 |
+| Cloud mini Improve/Judge | ✅ default | — |
+| Ollama fallback | ✅ | — |
+| Heuristic Strip | ✅ | — |
+| LLMLingua-2 | — | ✅ |
 
 ---
 

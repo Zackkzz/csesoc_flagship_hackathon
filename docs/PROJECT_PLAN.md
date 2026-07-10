@@ -201,6 +201,12 @@ Parallelism: after M2, Frontend can do M4 while Backend does M3+M5.
 
 | Gate | Owner | Status |
 |------|-------|--------|
-| Clarifying questions answered | Team | Pending |
-| Architecture & stack approved | Team | Pending — see [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| Start writing application code | Team | Blocked until above |
+| Clarifying questions answered | Team | ✅ **Q1=D, Q2=D, Q3=C** |
+| Architecture & stack approved | Team | ✅ **Stack R** + proxy in MVP + hybrid models |
+| Start writing application code | Team | 🟢 Unblocked — start at **M0** when ready |
+
+### Locked scope reminders
+
+- **M1** upload ingest + **M6** OpenAI-compatible proxy are both required.  
+- **M4** web UX is the judging surface; no extension work before M6 green.  
+- **M3/M5/M6** processing path: try cloud mini → fall back to Ollama.
