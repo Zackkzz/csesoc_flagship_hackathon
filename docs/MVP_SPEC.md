@@ -1,22 +1,22 @@
 # MVP Specification
 
 Traceability to [`Requirement.md`](../Requirement.md) Key Features.  
-**Locked decisions:** Q1=D · Q2=D · Q3=C · Stack R.
+**Locked decisions:** Q1=D · Q2=D · Q3=C · Stack R.  
+**Scope change:** low-information **token strip middleware is out of MVP**.
 
 ---
 
 ## Scope locks
 
-| Area | In MVP | Stretch |
-|------|--------|---------|
+| Area | In MVP | Out / stretch |
+|------|--------|----------------|
 | History upload (JSON / export) | ✅ | — |
-| OpenAI-compatible proxy | ✅ (M6) | — |
+| OpenAI-compatible proxy | ✅ | — |
 | React web dashboard + playground | ✅ | — |
-| Browser extension | — | ✅ after M6 |
 | Cloud mini Improve/Judge | ✅ default | — |
 | Ollama fallback | ✅ | — |
-| Heuristic Strip | ✅ | — |
-| LLMLingua-2 | — | ✅ |
+| Browser extension | — | stretch |
+| Context token strip / LLMLingua | — | **out of MVP** |
 
 ---
 
@@ -45,20 +45,12 @@ Traceability to [`Requirement.md`](../Requirement.md) Key Features.
 
 **Accept:** Score always in 0–100; deductions cite pattern + span.
 
-### F4 — Strip low-information tokens (toggle)
+### F4 — Cheap processing
 
-- Off by default  
-- On: compress context/messages; show diff  
-- Processing: heuristic and/or cheap model — not frontier
-
-**Accept:** ≥30% token reduction on bloated fixture; code blocks preserved.
-
-### F5 — Cheap processing
-
-- Config lists improver/judge/strip models  
+- Config lists improver/judge models  
 - Docs + UI state “Processing model: …”
 
-**Accept:** No frontier model used on Improve/Judge/Strip paths in default config.
+**Accept:** No frontier model used on Improve/Judge paths in default config.
 
 ---
 
@@ -70,11 +62,11 @@ Upload history → style report → read top tips → open example rewrite.
 
 ### Flow B — Fix before send
 
-Type prompt → see score → Improve ON → edit if needed → Strip ON → send → see output score + cost.
+Type prompt → see score → Improve ON → edit if needed → send → see output score + cost.
 
 ### Flow C — Proxy (completeness)
 
-Point client `base_url` at local gateway with `improve`/`strip` flags.
+Point client `base_url` at local gateway with `improve` flags.
 
 ---
 
@@ -82,10 +74,9 @@ Point client `base_url` at local gateway with `improve`/`strip` flags.
 
 - Score is the hero number (large 0–100)  
 - Color: low / mid / high bands  
-- Strip diff: red = removed  
 - Improve: side-by-side original vs rewritten  
 - Empty states with sample data button  
-- Mobile-usable layout optional; desktop-first OK for hackathon  
+- Desktop-first OK for hackathon  
 
 ---
 
@@ -95,7 +86,7 @@ Point client `base_url` at local gateway with `improve`/`strip` flags.
 |-----|--------|
 | Local-first | SQLite; localhost API |
 | Latency | Heuristic score &lt; 100ms; Improve &lt; 2s typical on mini |
-| Code quality (when built) | Clean, commented public functions |
+| Code quality | Clean, commented public functions |
 | Privacy | Cloud mini calls disclosed |
 
 ---
@@ -105,6 +96,5 @@ Point client `base_url` at local gateway with `improve`/`strip` flags.
 - [ ] History → style report  
 - [ ] Prompt → score 0–100  
 - [ ] Improve → better score  
-- [ ] Strip → fewer tokens + diff  
 - [ ] Full send path works  
 - [ ] Pitch ties features to marking criteria  

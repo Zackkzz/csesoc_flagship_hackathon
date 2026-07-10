@@ -1,0 +1,12 @@
+.env
+.env.local
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+apps/api/promptlens.db
+apps/api/*.db
+.DS_Store
+dist/
+*.egg-info/

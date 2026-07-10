@@ -19,12 +19,11 @@ This is a **CSE hackathon** project. Success is measured by:
 
 ## Problem
 
-Users send inefficient prompts and bloated context to AI:
+Users send inefficient prompts to AI:
 
-- Vague filler, politeness, redundant constraints → more tokens, worse attention  
+- Vague filler, politeness, redundant constraints → worse answers and wasted tokens  
 - No feedback on whether a prompt is “good”  
 - Past chats hide repeated bad habits  
-- Context windows fill with low-information tokens before the real ask  
 
 ## Value proposition
 
@@ -32,21 +31,26 @@ Users send inefficient prompts and bloated context to AI:
 
 | For | Value |
 |-----|--------|
-| Students / hackers | Higher-quality answers; fewer wasted API credits |
+| Students / hackers | Higher-quality answers; clearer asks |
 | Builders | Tighter prompts before agent/API calls |
-| Judges (demo) | Clear before/after scores, token savings, live toggles |
+| Judges (demo) | Clear before/after scores and live Improve |
 
-**Promise:** *See what’s wrong with your prompting style, get a 0–100 score, fix it with a cheap model, and optionally strip noise before the expensive call.*
+**Promise:** *See what’s wrong with your prompting style, get a 0–100 score, and fix it with a cheap model before you hit the expensive one.*
 
 ---
 
-## Key features (requirements)
+## Key features (MVP)
 
 1. **Pre-send efficiency** — suggestions + optional Improve rewrite.  
 2. **History analysis** — collect prior contexts; surface inefficiencies.  
 3. **Score 0–100** — current prompt quality (plus output score after call).  
-4. **Strip toggle** — remove low-information tokens from context pre-call.  
-5. **Cheap processing models** — all coaching/compression on efficient models.
+4. **Cheap processing models** — coaching on efficient models only.
+
+## Explicitly out of scope (MVP)
+
+- Middleware that strips low-information tokens from context before the call  
+- Browser extension (stretch)  
+- Multi-tenant SaaS  
 
 ---
 
@@ -56,22 +60,13 @@ Users send inefficient prompts and bloated context to AI:
 - InputScore 0–100 with explanations  
 - Style report  
 - Improve toggle  
-- Strip toggle + preview  
 - Call target model + basic OutputScore  
-- Local web UI  
-
-## Out of scope (MVP)
-
-- Final production SaaS  
-- Fine-tuned custom models  
-- Mobile apps  
-- Writing application code before architecture approval  
+- Local web UI + OpenAI-compatible proxy  
 
 ---
 
 ## Success for demo
 
 - Score moves meaningfully after Improve  
-- Strip shows visible token reduction  
 - Style report names 2–3 personal anti-patterns  
-- Pitch ties each feature to a marking criterion  
+- Pitch ties features to marking criteria  
