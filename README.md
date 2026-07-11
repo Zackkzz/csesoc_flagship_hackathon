@@ -1,98 +1,121 @@
-# vinext-starter
+# tokenlean
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Measure and reduce wasted Claude Code tokens.
 
-## Prerequisites
+tokenlean analyzes your Claude Code transcripts for measurably wasteful patterns — rework loops, re-pasted context, vague openings — and turns them into concrete fixes, above all suggested additions to your `CLAUDE.md`. It can also nudge you (gently, and never blockingly) at the moment you prompt, and record exact token usage through a strictly read-only local proxy.
 
-- Node.js `>=22.13.0`
+The motivating goal is environmental: wasted inference tokens waste energy and water. To be clear about the scale: **per-user savings are modest.** A single user trimming a million wasted tokens saves somewhere around 0.3–1.0 kWh of inference energy on our default constants — roughly a laptop's working day, at the high end. The leverage is elsewhere: better prompting habits compound over every future session, and small savings multiplied across many users add up. tokenlean measures real waste rather than assumed waste, and reports impact only as sourced ranges (see [ASSUMPTIONS.md](ASSUMPTIONS.md)).
 
-## Quick Start
+## Components
 
-```bash
-npm install
-npm run dev
-npm run build
+Three components, shipped in this order. Each is independently useful and independently installable.
+
+1. **Offline transcript analyzer** — parses your local session transcripts, scores waste, proposes fixes.
+2. **Live coaching hook** — a `UserPromptSubmit` hook that occasionally adds one informational context line.
+3. **Read-only proxy observer** — records the `usage` block from API responses; changes nothing else.
+
+## Browser extension
+
+The `extension/` directory contains an optional Chrome side-panel companion.
+It is separate from the read-only API proxy and has three explicit,
+user-triggered tools:
+
+- **Inspect active page** reads the current page title, URL, headings, a bounded
+  visible-text sample, and the number of editable fields after you click
+  Inspect. Access is temporary through Chrome's `activeTab` permission.
+- **Improve a prompt** reads the active editable field on request, proposes a
+  plain-text structure, and inserts the reviewed text only after you click
+  Insert. It never submits the prompt.
+- **Import transcripts** accepts JSONL, JSON, and text files through the file
+  picker. Parsing happens inside the extension; raw transcript contents are not
+  uploaded to a server. Only aggregate counts are saved in extension storage.
+
+To try it locally, open `chrome://extensions`, enable Developer mode, choose
+**Load unpacked**, and select the `extension` directory. Reload the extension
+after source changes.
+
+These extension capabilities do not relax the core v1 guarantees: the proxy
+still never transforms API traffic, and the Claude Code hook still never
+rewrites or blocks prompts.
+
+## Quickstart
+
+```
+npx tokenlean analyze          # parse transcripts, run heuristics, optional LLM pass
+npx tokenlean report           # scorecard, findings, proposed CLAUDE.md additions
+npx tokenlean hooks install    # enable the live coaching nudge
+npx tokenlean proxy enable     # print the settings changes for exact token counts
+npx tokenlean status           # env, proxy health, hook presence, DB stats, self-spend
 ```
 
-This starter does not use `wrangler.jsonc`.
+Without `ANTHROPIC_API_KEY` set (or with `--sample 0`), `analyze` runs heuristics only and nothing leaves your machine. With a key, the sampled LLM pass runs — read the [Privacy](#privacy) section first.
 
-## Included Shape
+## How it works
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+### 1. Offline transcript analyzer
 
-## Workspace Auth Headers
+Claude Code stores sessions as JSONL under `~/.claude/projects/`. The analyzer parses them defensively (the format is undocumented and treated as unstable; malformed lines are skipped, never fatal) and incrementally (only new content on re-runs). A heuristic pass runs on everything: correction turns, repeated file reads, context re-supplied across sessions, paste-heavy prompts, abandonment. A budgeted LLM pass then samples only the N most wasteful sessions (default 10), condenses them, and submits them via the Anthropic Message Batches API to `claude-haiku-4-5` for classification against a six-category taxonomy. Findings in the `missing_convention` and `resupplied_context` categories aggregate into a proposed `CLAUDE.md` diff per project; `tokenlean report --write-claude-md` writes it to `CLAUDE.md.suggested` — it never edits your `CLAUDE.md` directly.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+### 2. Live coaching hook
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+`tokenlean hooks install` adds a `UserPromptSubmit` hook to `~/.claude/settings.json`, merging non-destructively and backing up the file first. On the first prompt of a session, the hook scores the prompt against patterns learned offline (vague-opener lexicon, this project's known missing-convention topics, oversized pastes) and, on a high-confidence match, prints one context line that Claude — not you — sees, phrased as information rather than command, so Claude asks a single clarifying question when warranted. **The hook never blocks:** the hot path is heuristic-only (no LLM call, ever), budgeted under 500 ms, and exits 0 on every path including internal errors and a locked database — exit code 2, which would block your prompt, is forbidden by design. Rate limits: at most 1 nudge per session, at most 5 per day, and `tokenlean hooks mute <days>` as an escape hatch. Every invocation, fired or suppressed, is logged locally and audited in the report's digest.
 
-Treat the full name as optional and fall back to email when it is absent:
+### 3. Read-only proxy observer
 
-```tsx
-import { headers } from "next/headers";
+Heuristics cannot see token counts; only API responses carry the `usage` block. `tokenlean proxy start` runs a local pass-through server (default `127.0.0.1:4141`) that forwards every request to `https://api.anthropic.com` preserving method, headers, and body **byte-for-byte**. Responses stream back by piping the socket — never buffering, so SSE frames arrive as they are produced. A tee parses `message_start`/`message_delta` events (or the JSON body for non-streaming responses) to record usage and model per request. Auth passes through untouched; tokenlean never stores API keys. Unknown fields are forwarded unmodified. The proxy reads; it never rewrites.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+## Privacy
 
-  const displayName = fullName ?? email;
-  // ...
-}
+Stated plainly, because it matters:
+
+- **The LLM analysis pass sends sampled transcripts as-is to the Anthropic API — your code included.** No redaction, no filtering. It only runs when `ANTHROPIC_API_KEY` is set; `analyze --sample 0` disables it entirely. The CLI also states this on first run.
+- **Everything else stays on your machine.** All state lives in a single local SQLite file (`~/.tokenlean/db.sqlite`). There is no telemetry and no network traffic other than the Anthropic API calls above (and, if you enable the proxy, the API traffic you were already sending).
+- **The browser extension uses temporary active-tab access.** Page inspection
+  and prompt insertion happen only after button clicks. Imported transcript
+  files are parsed locally; the extension stores summary counts, not raw text.
+- **Redaction before submission is the top v2 candidate.** Track it at [tokenlean/tokenlean#1](https://github.com/tokenlean/tokenlean/issues/1) (placeholder until the repository is published).
+
+## Proxy failure posture: fail loud, not silent
+
+If `ANTHROPIC_BASE_URL` points at the proxy and the proxy process is not running, Claude Code requests **fail visibly**. This is deliberate. v1 has no daemon, no supervisor, and no silent fallback: a half-working observer that quietly drops data (or quietly stops observing) is worse than an obvious failure. `tokenlean status` diagnoses exactly this state — base URL set, nothing listening — and tells you what to do. `tokenlean proxy enable` prints the required settings changes rather than applying them silently, and notes that Claude Code reads the env at process start, so running sessions are unaffected until restarted. A launchd/systemd unit is a v2 candidate.
+
+Known side effect: with a non-first-party `ANTHROPIC_BASE_URL`, Claude Code disables MCP tool search by default. Re-enable it with `ENABLE_TOOL_SEARCH=true` if you use it.
+
+## Self-accounting
+
+An efficiency tool that hides its own cost is not credible. Every report prints tokenlean's own analysis spend, e.g. `tokenlean spent 41k tokens ≈ $0.03 analyzing 2.1M tokens — 1.9% overhead`. The target is analysis spend at or below **2%** of the usage analyzed; sampling and the Batches API exist to keep it there.
+
+## Environmental estimates
+
+Reports convert tokens saved against your baseline into energy and water figures using the constants in `src/constants.ts` — each with a source URL and a LOW/HIGH bound. Output is **always a range**, always labeled `rough estimate — no first-party figures exist for Claude; see ASSUMPTIONS.md`, and never a single unqualified number. Cache-read tokens are weighted at 10% of uncached tokens; that weighting is an assumption, and it is flagged as one. [ASSUMPTIONS.md](ASSUMPTIONS.md) documents every constant, its source, and its uncertainty.
+
+## CLI reference
+
+```
+npx tokenlean analyze [--wait] [--sample N] [--claude-dir PATH]
+npx tokenlean report  [--json] [--write-claude-md] [--since 7d]
+npx tokenlean hooks   install | uninstall | mute <days>
+npx tokenlean proxy   start | stop | enable | disable
+npx tokenlean status            # env, proxy health, hook presence, DB stats, self-spend
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+All commands are manual — no scheduler in v1.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Success metrics
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+tokenlean succeeds if, after four weeks of use:
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+1. the correction-turn rate (user messages that reverse or fix Claude's previous work) drops measurably from the week-1 baseline;
+2. cache hit rate holds steady or improves;
+3. tokens per completed task trends down;
+4. analysis overhead stays under the 2% budget.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+Week 1 exists to establish the baseline, which is why the analyzer ships first and coaching comes second.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+## Non-goals (v1)
 
-## Useful Commands
+tokenlean never modifies API traffic — the proxy is strictly read-only. It never rewrites your prompts, silently or otherwise. It never blocks a prompt. No web dashboard, no scheduled runs, no team aggregation, no secret redaction (all documented v2 candidates). It is not a cost-optimization router; model routing is out of scope.
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## License
 
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+[MIT](LICENSE).
