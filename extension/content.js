@@ -829,16 +829,7 @@
       lastEditable = target;
       editor.value = text;
       promptStatus.textContent = "Suggested prompt inserted into the chat input.";
-      // Keep the suggestion visible until the user selects different text.
-      toolbarPinned = true;
-      toolbarMode = "suggest";
-      toolbarSuggestion = text;
-      toolbarSourceText = normalizeToolbarText(toolbarSourceText) || normalizeToolbarText(text);
-      tbAnalyzeBtn.classList.remove("done");
-      tbAnalyzeBtn.classList.add("suggest", "primary");
-      tbAnalyzeBtn.textContent = truncateToolbarLabel(text);
-      tbAnalyzeBtn.title = `${text}\n\nInserted. Select other text to analyze again.`;
-      keepToolbarVisible(target, lastSelectionRect);
+      dismissFinishedToolbar();
       setTimeout(() => { allowToolbarClick = false; }, 500);
     } else {
       promptStatus.textContent = "Could not insert into the chat input. Click the field and try again.";
@@ -1396,6 +1387,15 @@
     return true;
   };
 
+  /** After Done / insert / outside click, skip re-showing Analyze for the same selection. */
+  let dismissedSourceText = "";
+
+  const dismissFinishedToolbar = () => {
+    dismissedSourceText = normalizeToolbarText(toolbarSourceText);
+    // Instant hide so Done/suggest never flash back to "Analyze" during the fade.
+    hideToolbar({ force: true, instant: true });
+  };
+
   const hideToolbar = (opts = {}) => {
     if (!opts.force && (toolbarMode === "analyzing" || toolbarMode === "suggest" || toolbarMode === "done")) {
       return;
@@ -1404,10 +1404,24 @@
     clearTimeout(hintShowTimer);
     hintShowTimer = 0;
     selectionPending = false;
-    toolbar.classList.remove("show");
-    toolbar.hidden = true;
+    if (opts.instant) {
+      toolbar.style.transition = "none";
+      toolbar.classList.remove("show");
+      toolbar.hidden = true;
+      void toolbar.offsetWidth;
+      toolbar.style.transition = "";
+    } else {
+      toolbar.classList.remove("show");
+      toolbar.hidden = true;
+    }
     hintTarget = null;
     resetToolbarChrome();
+  };
+
+  const shouldSuppressRevealFor = (text) => {
+    const next = normalizeToolbarText(text);
+    if (!next || !dismissedSourceText) return false;
+    return next === dismissedSourceText;
   };
 
   const switchToolbarToAnalyzeForSelection = (selected) => {
@@ -1532,13 +1546,18 @@
     cancelPendingToolbar();
     const selected = captureSelectionSnapshot() || selectionSnapshot;
 
-    // Keep Done / suggested prompt until the user selects different text.
-    if (toolbarMode === "suggest" || toolbarMode === "done" || toolbarMode === "analyzing") {
+    // While analyzing, keep the button visible. After finish, outside/empty selection dismisses.
+    if (toolbarMode === "analyzing") {
+      keepToolbarVisible(selected?.field || toolbarInsertTarget, selected?.rect || lastSelectionRect);
+      return;
+    }
+    if (toolbarMode === "suggest" || toolbarMode === "done") {
       if (!selected?.text) {
-        keepToolbarVisible(toolbarInsertTarget, lastSelectionRect);
+        dismissFinishedToolbar();
         return;
       }
-      if (toolbarMode !== "analyzing" && isDifferentToolbarText(selected.text)) {
+      if (isDifferentToolbarText(selected.text)) {
+        dismissedSourceText = "";
         switchToolbarToAnalyzeForSelection(selected);
         return;
       }
@@ -1548,9 +1567,15 @@
 
     if (!selected?.text) {
       selectionPending = false;
+      dismissedSourceText = "";
       if (toolbar.classList.contains("show")) hideToolbar();
       return;
     }
+    if (shouldSuppressRevealFor(selected.text)) {
+      selectionPending = false;
+      return;
+    }
+    dismissedSourceText = "";
     selectionPending = true;
     hintTarget = selected.field;
     lastEditable = selected.field;
@@ -1568,14 +1593,21 @@
         hideToolbar();
         return;
       }
-      if (toolbarMode === "suggest" || toolbarMode === "done" || toolbarMode === "analyzing") {
-        if (toolbarMode !== "analyzing" && isDifferentToolbarText(again.text)) {
+      if (shouldSuppressRevealFor(again.text)) return;
+      if (toolbarMode === "analyzing") {
+        keepToolbarVisible(again.field, again.rect);
+        return;
+      }
+      if (toolbarMode === "suggest" || toolbarMode === "done") {
+        if (isDifferentToolbarText(again.text)) {
+          dismissedSourceText = "";
           switchToolbarToAnalyzeForSelection(again);
         } else {
           keepToolbarVisible(again.field, again.rect);
         }
         return;
       }
+      dismissedSourceText = "";
       revealToolbar(again);
     }, 350);
   };
@@ -1649,7 +1681,7 @@
       return;
     }
     if (toolbarMode === "done") {
-      // Keep Done visible until the user selects different text.
+      dismissFinishedToolbar();
       setTimeout(() => { allowToolbarClick = false; }, 400);
       return;
     }
@@ -1668,6 +1700,7 @@
       return;
     }
 
+    dismissedSourceText = "";
     toolbarMode = "analyzing";
     toolbarPinned = true;
     toolbarSuggestion = "";
@@ -1696,7 +1729,11 @@
     "keydown",
     (event) => {
       if (event.key === "Escape") {
-        hideToolbar({ force: true });
+        if (toolbarMode === "suggest" || toolbarMode === "done") {
+          dismissFinishedToolbar();
+        } else {
+          hideToolbar({ force: true });
+        }
         setOpen(false);
         return;
       }
@@ -1711,6 +1748,13 @@
     (event) => {
       const path = event.composedPath?.() || [];
       if (path.includes(toolbar) || path.includes(widget) || path.includes(fab)) return;
+      // After analysis finishes, any outside click dismisses the popup.
+      if (toolbarMode === "suggest" || toolbarMode === "done") {
+        dismissFinishedToolbar();
+        pointerSelecting = true;
+        selectionSnapshot = null;
+        return;
+      }
       pointerSelecting = true;
       selectionSnapshot = null;
       onUserActivity();
@@ -1788,7 +1832,7 @@
         sendResponse({ success: false, error: "No prompts found on the page yet." });
         return false;
       }
-      chrome.storage.local.set({ recentPrompts: prompts.slice(-10) }, () => {
+      chrome.storage.local.set({ recentPrompts: prompts.slice(-10), recentPromptsAt: Date.now() }, () => {
         if (chrome.runtime.lastError) {
           sendResponse({ success: false, error: chrome.runtime.lastError.message });
         } else {
@@ -1845,9 +1889,10 @@
       return;
     }
     const recentPrompts = prompts.slice(-10);
-    // Storing recentPrompts triggers the background storage listener, which
-    // opens the dashboard — the single open path shared with popup Import.
-    chrome.storage.local.set({ recentPrompts }, () => {
+    // Storing recentPrompts (+ a fresh timestamp) triggers the background
+    // storage listener, which opens the dashboard — the single open path
+    // shared with popup Import.
+    chrome.storage.local.set({ recentPrompts, recentPromptsAt: Date.now() }, () => {
       if (chrome.runtime.lastError) {
         if (inspectStatus) inspectStatus.textContent = chrome.runtime.lastError.message;
         return;
@@ -1903,7 +1948,7 @@
       return;
     }
     importStatus.textContent = "Opening audit dashboard…";
-    await chrome.storage.local.set({ recentPrompts: importedPrompts });
+    await chrome.storage.local.set({ recentPrompts: importedPrompts, recentPromptsAt: Date.now() });
   };
 
   void refreshBridgeInfo();
