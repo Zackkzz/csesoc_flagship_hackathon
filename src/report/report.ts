@@ -370,26 +370,36 @@ function renderCompact(data: ReportData): string {
   const paint = (code: string) => (s: string) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
   const bold = paint('1');
   const dim = paint('2');
-  const green = paint('32');
-  const yellow = paint('33');
-  const red = paint('31');
-  const cyan = paint('36');
+  const green = paint('92');
+  const yellow = paint('93');
+  const red = paint('91');
+  const cyan = paint('96');
+  const white = paint('97');
+  /** Bold white text on a colored background — used for the rank chips. */
+  const badge = (bg: string) => paint(`1;97;${bg}`);
 
   const out: string[] = [];
-  const rule = () => out.push(dim('─'.repeat(COMPACT_WIDTH)));
+  const rule = () => out.push(cyan('─'.repeat(COMPACT_WIDTH)));
+  /** A section heading with a colored left-edge bar for strong separation. */
+  const header = (title: string, suffix = '') =>
+    out.push('', cyan('▍ ') + bold(white(title)) + (suffix ? dim('   ' + suffix) : ''));
+  /** A metric value + verdict word, both tinted by severity. */
+  const gauge = (value: string, good: boolean, ok: boolean) => {
+    const tint = good ? green : ok ? yellow : red;
+    return tint(value.padEnd(7)) + ' ' + tint(good ? 'great' : ok ? 'ok' : 'high');
+  };
   const date = new Date(data.generatedAt).toISOString().slice(0, 10);
   const windowLabel = data.sinceDays === null ? 'all time' : `last ${data.sinceDays}d`;
 
-  out.push(bold('PromptCoach') + dim(`  ·  ${windowLabel}  ·  ${date}`));
+  out.push(bold(cyan('PromptCoach')) + dim(`  ·  ${windowLabel}  ·  ${date}`));
   rule();
 
   // FOOTPRINT --------------------------------------------------------
   const env = data.env;
-  out.push('');
-  out.push(bold('FOOTPRINT'));
+  header('FOOTPRINT');
   out.push(
     '  ≈ ' +
-      cyan(formatRange(env.windowFootprintKwh, 'kWh')) +
+      bold(cyan(formatRange(env.windowFootprintKwh, 'kWh'))) +
       dim('   ·   ' + formatRange(env.windowEquivalents.smartphoneCharges, 'phone charges')) +
       dim('   ·   ' + formatRange(env.windowEquivalents.evKm, 'km in an EV'))
   );
@@ -411,17 +421,12 @@ function renderCompact(data: ReportData): string {
 
   // HEALTH -----------------------------------------------------------
   const sc = data.scorecard;
-  const verdict = (good: boolean, ok: boolean) =>
-    good ? green('great') : ok ? yellow('ok') : red('high');
   const rowLabel = (s: string) => '  ' + s.padEnd(13);
-  out.push('');
-  out.push(bold('HEALTH'));
+  header('HEALTH');
 
   let corrLine =
     rowLabel('corrections') +
-    pct(sc.correctionRate).padEnd(7) +
-    ' ' +
-    verdict(sc.correctionRate <= 0.05, sc.correctionRate <= 0.12);
+    gauge(pct(sc.correctionRate), sc.correctionRate <= 0.05, sc.correctionRate <= 0.12);
   if (sc.baselineCorrectionRate !== null && sc.correctionDelta !== null) {
     const pp = sc.correctionDelta * 100;
     const arrow = pp <= 0 ? '↓' : '↑';
@@ -432,9 +437,7 @@ function renderCompact(data: ReportData): string {
   if (sc.cacheHitRate !== null) {
     out.push(
       rowLabel('cache hits') +
-        pct(sc.cacheHitRate).padEnd(7) +
-        ' ' +
-        verdict(sc.cacheHitRate >= 0.9, sc.cacheHitRate >= 0.7)
+        gauge(pct(sc.cacheHitRate), sc.cacheHitRate >= 0.9, sc.cacheHitRate >= 0.7)
     );
   }
   out.push(
@@ -445,8 +448,7 @@ function renderCompact(data: ReportData): string {
   );
 
   // TOP FIXES --------------------------------------------------------
-  out.push('');
-  out.push(bold('TOP FIXES') + dim('  ·  ranked by wasted tokens'));
+  header('TOP FIXES', 'ranked by wasted tokens');
   const rows = data.wasteLedger.rows;
   if (rows.length === 0) {
     out.push(dim('  none yet — run `promptcoach analyze` after a few sessions.'));
@@ -456,19 +458,25 @@ function renderCompact(data: ReportData): string {
       if (g.examples[0]) suggestionByCat.set(g.category, g.examples[0].suggestion);
     }
     const maxHigh = Math.max(...rows.map((r) => r.effTokens.high), 1);
+    // Rank 1 is the costliest habit — tint it red, then amber, then cyan, so
+    // the eye lands on the biggest win first.
+    const tints = [red, yellow, cyan];
+    const chipBg = ['41', '43', '46'];
     rows.slice(0, 3).forEach((row, i) => {
       const info = prettyCategory(row.category);
+      const tint = tints[i] ?? cyan;
       const blocks = Math.max(1, Math.round((row.effTokens.high / maxHigh) * 11));
       out.push(
-        bold(` ${i + 1} `) +
-          bold(info.label.padEnd(22)) +
+        badge(chipBg[i] ?? '46')(` ${i + 1} `) +
+          ' ' +
+          bold(white(info.label.padEnd(22))) +
           dim(`${row.count}×`.padStart(5) + '  ') +
-          `~${fmtTokenRange(row.effTokens)} tok`.padEnd(20) +
-          cyan('█'.repeat(blocks))
+          tint(`~${fmtTokenRange(row.effTokens)} tok`.padEnd(20)) +
+          tint('█'.repeat(blocks))
       );
       if (info.blurb) out.push(dim('     ' + info.blurb));
       const fix = suggestionByCat.get(row.category);
-      if (fix) out.push('     ' + green('→ ') + oneLine(fix, 66));
+      if (fix) out.push('     ' + green('→ ') + white(oneLine(fix, 66)));
     });
     if (rows.length > 3) {
       const restCount = rows.slice(3).reduce((n, r) => n + r.count, 0);
@@ -488,9 +496,11 @@ function renderCompact(data: ReportData): string {
   const diffs = data.claudeMdDiffs;
   if (diffs.length > 0) {
     const additions = diffs.reduce((n, d) => n + (d.diff.match(/^\+[^+]/gm)?.length ?? 0), 0);
-    out.push('');
-    out.push(bold('CLAUDE.md SUGGESTIONS'));
-    out.push(`  ${additions} addition(s) ready across ${diffs.length} project(s).`);
+    header('CLAUDE.md SUGGESTIONS');
+    out.push(
+      `  ${bold(white(String(additions)))} addition(s) ready across ` +
+        `${bold(white(String(diffs.length)))} project(s).`
+    );
     out.push(
       '  ' +
         green('→ ') +
