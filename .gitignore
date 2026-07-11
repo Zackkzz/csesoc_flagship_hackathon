@@ -8,3 +8,5 @@ dist/
 CLAUDE.md.suggested
 *.tsbuildinfo
 .DS_Store
+.vinext/
+.wrangler/

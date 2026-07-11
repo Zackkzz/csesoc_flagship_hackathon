@@ -212,6 +212,9 @@ export function ingestTranscripts(
   }
 
   const stmts = {
+    ensureSession: db.prepare(
+      'INSERT OR IGNORE INTO sessions (id, project, turn_count) VALUES (?, ?, 0)'
+    ),
     maxIdx: db.prepare('SELECT MAX(idx) AS m FROM turns WHERE session_id = ?'),
     insTurn: db.prepare(
       `INSERT OR IGNORE INTO turns
@@ -248,6 +251,7 @@ export function ingestTranscripts(
     } catch {
       return; // vanished between scan and read
     }
+    stmts.ensureSession.run(sessionId, file.projectDirName);
 
     let state: FileState | null = null;
     const rawState = metaGet(db, metaKeyFor(file.path));
@@ -378,7 +382,7 @@ export function ingestTranscripts(
           if (!pending.usage) pending.usage = usage;
         } else {
           flushPending();
-          const continuation = mayContinue && msgId === lastMsgId;
+          const continuation: boolean = mayContinue && msgId === lastMsgId;
           pending = { msgId, ts, charLen: textLen, usage, toolUses, continuation };
         }
         mayContinue = false;

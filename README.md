@@ -14,6 +14,30 @@ Three components, shipped in this order. Each is independently useful and indepe
 2. **Live coaching hook** — a `UserPromptSubmit` hook that occasionally adds one informational context line.
 3. **Read-only proxy observer** — records the `usage` block from API responses; changes nothing else.
 
+## Browser extension
+
+The `extension/` directory contains an optional Chrome side-panel companion.
+It is separate from the read-only API proxy and has three explicit,
+user-triggered tools:
+
+- **Inspect active page** reads the current page title, URL, headings, a bounded
+  visible-text sample, and the number of editable fields after you click
+  Inspect. Access is temporary through Chrome's `activeTab` permission.
+- **Improve a prompt** reads the active editable field on request, proposes a
+  plain-text structure, and inserts the reviewed text only after you click
+  Insert. It never submits the prompt.
+- **Import transcripts** accepts JSONL, JSON, and text files through the file
+  picker. Parsing happens inside the extension; raw transcript contents are not
+  uploaded to a server. Only aggregate counts are saved in extension storage.
+
+To try it locally, open `chrome://extensions`, enable Developer mode, choose
+**Load unpacked**, and select the `extension` directory. Reload the extension
+after source changes.
+
+These extension capabilities do not relax the core v1 guarantees: the proxy
+still never transforms API traffic, and the Claude Code hook still never
+rewrites or blocks prompts.
+
 ## Quickstart
 
 ```
@@ -46,6 +70,9 @@ Stated plainly, because it matters:
 
 - **The LLM analysis pass sends sampled transcripts as-is to the Anthropic API — your code included.** No redaction, no filtering. It only runs when `ANTHROPIC_API_KEY` is set; `analyze --sample 0` disables it entirely. The CLI also states this on first run.
 - **Everything else stays on your machine.** All state lives in a single local SQLite file (`~/.tokenlean/db.sqlite`). There is no telemetry and no network traffic other than the Anthropic API calls above (and, if you enable the proxy, the API traffic you were already sending).
+- **The browser extension uses temporary active-tab access.** Page inspection
+  and prompt insertion happen only after button clicks. Imported transcript
+  files are parsed locally; the extension stores summary counts, not raw text.
 - **Redaction before submission is the top v2 candidate.** Track it at [tokenlean/tokenlean#1](https://github.com/tokenlean/tokenlean/issues/1) (placeholder until the repository is published).
 
 ## Proxy failure posture: fail loud, not silent
