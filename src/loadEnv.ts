@@ -48,9 +48,9 @@ function readEnvFile(filePath: string): Record<string, string> | null {
  * Existing process.env values win (so real exports still override the file).
  *
  * Search order (later files do not override earlier ones once a key is set):
- * 1. TOKENLEAN_ENV path, if set
+ * 1. PROMPTCOACH_ENV / TOKENLEAN_ENV path, if set
  * 2. .env in the current working directory
- * 3. ~/.tokenlean/.env (shared across projects)
+ * 3. ~/.promptcoach/.env, then legacy ~/.tokenlean/.env (shared across projects)
  */
 export function loadEnvFiles(options?: { override?: boolean; cwd?: string }): string[] {
   const override = options?.override === true;
@@ -58,8 +58,10 @@ export function loadEnvFiles(options?: { override?: boolean; cwd?: string }): st
   const loaded: string[] = [];
 
   const candidates = [
+    process.env.PROMPTCOACH_ENV,
     process.env.TOKENLEAN_ENV,
     path.join(cwd, '.env'),
+    path.join(process.env.PROMPTCOACH_HOME || path.join(os.homedir(), '.promptcoach'), '.env'),
     path.join(process.env.TOKENLEAN_HOME || path.join(os.homedir(), '.tokenlean'), '.env'),
   ].filter((p): p is string => typeof p === 'string' && p.length > 0);
 

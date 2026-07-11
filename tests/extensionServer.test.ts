@@ -53,7 +53,12 @@ describe('extension review bridge', () => {
     vi.stubEnv('CURSOR_API_KEY', '');
     vi.stubEnv('GEMINI_API_KEY', '');
     vi.stubEnv('GOOGLE_API_KEY', '');
+    vi.stubEnv('PROMPTCOACH_LLM_API_KEY', '');
     vi.stubEnv('TOKENLEAN_LLM_API_KEY', '');
+    // Isolate the on-disk credential store so a locally saved key
+    // (~/.promptcoach or ~/.tokenlean credentials.json) can't leak in.
+    vi.stubEnv('PROMPTCOACH_CREDENTIALS', '/nonexistent/promptcoach-test/credentials.json');
+    vi.stubEnv('TOKENLEAN_CREDENTIALS', '/nonexistent/promptcoach-test/credentials.json');
     const server = createExtensionServer({
       reviewer: async () => null,
     });
