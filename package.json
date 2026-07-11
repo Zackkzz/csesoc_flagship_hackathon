@@ -1,6 +1,6 @@
 {
   "name": "promptcoach",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Prompt-efficiency coach for Claude Code and Codex CLI",
   "license": "MIT",
   "bin": {
