@@ -395,6 +395,7 @@ describe('--json shape', () => {
         'scorecard',
         'selfSpend',
         'sinceDays',
+        'wasteLedger',
       ].sort()
     );
     expect(Object.keys(roundTripped.scorecard).sort()).toEqual(
