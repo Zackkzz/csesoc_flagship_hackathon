@@ -3,6 +3,7 @@ import type { DB } from '../db';
 import { addSelfSpend, metaGet, metaSet } from '../db';
 import { DEFAULT_LLM_MODEL, nowMs } from '../config';
 import { anthropicApiKey } from '../credentials';
+import { noopProgress, type Progress } from '../spinner';
 import type { CollectResult, SubmitResult } from '../types';
 
 /**
@@ -340,7 +341,7 @@ export function parseLlmFindings(text: string): ParsedLlmFinding[] | null {
 
 export async function submitLlmBatch(
   db: DB,
-  opts: { sample: number; wait?: boolean; model?: string; log?: Log }
+  opts: { sample: number; wait?: boolean; model?: string; log?: Log; progress?: Progress }
 ): Promise<SubmitResult> {
   const log = opts.log ?? noop;
 
@@ -408,12 +409,17 @@ export async function submitLlmBatch(
       : '');
 
   if (opts.wait) {
-    log('Waiting for the batch to complete (polling every 5s, up to 30 min)...');
-    const collected = await collectLlmResults(db, { wait: true, log });
-    message +=
-      collected.stillPending > 0
-        ? ` Batch still processing after the wait cap — run \`promptcoach report\` later to collect results.`
-        : ` Collected ${collected.findingsAdded} finding(s) from ${collected.batchesCompleted} completed batch(es).`;
+    const progress = opts.progress ?? noopProgress;
+    progress.start('Waiting for the Haiku batch to finish (up to 30 min)…');
+    try {
+      const collected = await collectLlmResults(db, { wait: true, log, progress });
+      message +=
+        collected.stillPending > 0
+          ? ` Batch still processing after the wait cap — run \`promptcoach report\` later to collect results.`
+          : ` Collected ${collected.findingsAdded} finding(s) from ${collected.batchesCompleted} completed batch(es).`;
+    } finally {
+      progress.stop();
+    }
   } else {
     message += ' Results are collected by `promptcoach report` or `promptcoach analyze --wait`.';
   }
@@ -428,9 +434,10 @@ export async function submitLlmBatch(
 
 export async function collectLlmResults(
   db: DB,
-  opts?: { wait?: boolean; log?: Log }
+  opts?: { wait?: boolean; log?: Log; progress?: Progress }
 ): Promise<CollectResult> {
   const log = opts?.log ?? noop;
+  const progress = opts?.progress ?? noopProgress;
   const out: CollectResult = {
     batchesChecked: 0,
     batchesCompleted: 0,
@@ -459,7 +466,7 @@ export async function collectLlmResults(
       let batch = await client.messages.batches.retrieve(row.id);
       if (opts?.wait) {
         while (batch.processing_status !== 'ended' && nowMs() < deadline) {
-          log(`Batch ${row.id}: ${batch.processing_status}, polling again in 5s...`);
+          progress.update(`Haiku batch ${batch.processing_status.replace(/_/g, ' ')}…`);
           await sleep(POLL_INTERVAL_MS);
           batch = await client.messages.batches.retrieve(row.id);
         }

@@ -5,6 +5,7 @@ import { defaultClaudeDir, hookLlmConfig } from './config';
 import { ingestTranscripts } from './analyzer/parser';
 import { runHeuristics, recordBaselineIfReady } from './analyzer/heuristics';
 import { collectLlmResults, submitLlmBatch } from './analyzer/llm';
+import { createProgress } from './spinner';
 import { buildReport, renderReport } from './report/report';
 import { writeClaudeMdSuggestions } from './report/claudeMdDiff';
 import { getHookBypass, installHook, setHookBypass, uninstallHook, muteHooks } from './hook/install';
@@ -109,17 +110,25 @@ program.command('analyze')
       } else if (!anthropicApiKey()) {
         console.log('Haiku analysis skipped: run `promptcoach config set-key` to enable it.');
       } else {
-        const collected = await collectLlmResults(db, { log: console.log });
+        // A spinner covers the long batch wait; `log` wipes the spinner line
+        // first so permanent lines print cleanly above the animation.
+        const spinner = createProgress();
+        const log = (msg: string) => {
+          spinner.clear();
+          console.log(msg);
+        };
+        const collected = await collectLlmResults(db, { log });
         if (collected.batchesCompleted > 0) {
-          console.log(`Collected ${collected.findingsAdded} Haiku finding(s) from ${collected.batchesCompleted} prior batch(es).`);
+          log(`Collected ${collected.findingsAdded} Haiku finding(s) from ${collected.batchesCompleted} prior batch(es).`);
         }
         const submitted = await submitLlmBatch(db, {
           sample,
           wait: opts.wait,
           model: process.env.PROMPTCOACH_LLM_MODEL || process.env.TOKENLEAN_LLM_MODEL,
-          log: console.log,
+          log,
+          progress: spinner,
         });
-        console.log(submitted.message);
+        if (submitted.message) log(submitted.message);
       }
     } finally { db.close(); }
   });
