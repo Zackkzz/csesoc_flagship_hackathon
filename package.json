@@ -32,7 +32,7 @@
     "dist",
     "bin",
     "README.md",
-    "ASSUMPTIONS.md",
+    "docs/cli/ASSUMPTIONS.md",
     "LICENSE",
     "extension",
     ".env.example"

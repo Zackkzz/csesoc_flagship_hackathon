@@ -7,6 +7,20 @@ optional Haiku feedback before you submit a prompt.
 You do not need to be a developer to set it up. The basic setup takes a few
 minutes and only needs to be completed once.
 
+## Repository layout
+
+```text
+src/                 llmguide CLI, hook, analyzer, reports
+extension/           Chrome extension (Analyze UI + Gemini audit dashboard)
+apps/api             PromptLens FastAPI backend
+apps/web             PromptLens Vite frontend
+docs/                Documentation index — start at docs/README.md
+fixtures/            Synthetic sample data for demos and tests
+bin/llmguide.js      CLI entry point
+```
+
+More detail: [docs/README.md](docs/README.md).
+
 ## Before you begin
 
 You need:
@@ -279,7 +293,7 @@ Transcript analysis itself uses Anthropic's Message Batches API and defaults
 to Haiku.
 
 Environmental impact is reported as a sourced range with a mandatory
-uncertainty label. See [ASSUMPTIONS.md](ASSUMPTIONS.md).
+uncertainty label. See [docs/cli/ASSUMPTIONS.md](docs/cli/ASSUMPTIONS.md).
 
 ## License
 

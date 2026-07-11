@@ -1,6 +1,6 @@
 # Phased Project Plan
 
-Aligned with [`Requirement.md`](../Requirement.md) Immediate Instructions §2.  
+Aligned with [`REQUIREMENTS.md`](./REQUIREMENTS.md) Immediate Instructions §2.  
 **No final app code until clarifying questions + architecture approval.**
 
 ---

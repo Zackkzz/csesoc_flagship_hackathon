@@ -1,6 +1,6 @@
 # Hackathon Pitch & Demo
 
-Maps to marking criteria in [`Requirement.md`](../Requirement.md).
+Maps to marking criteria in [`REQUIREMENTS.md`](./REQUIREMENTS.md).
 
 ---
 

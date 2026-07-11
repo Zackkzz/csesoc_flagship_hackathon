@@ -1,6 +1,6 @@
 # Research Summary
 
-Supports innovation + technical complexity for the hackathon brief in [`Requirement.md`](../Requirement.md).
+Supports innovation + technical complexity for the hackathon brief in [`REQUIREMENTS.md`](./REQUIREMENTS.md).
 
 ---
 

@@ -5,7 +5,7 @@
  * first-party energy figures for Claude; these are literature ranges for
  * large-model inference. Reports must always print ranges, never a single
  * unqualified number, and must label the output "rough estimate".
- * See ASSUMPTIONS.md for the full discussion.
+ * See docs/cli/ASSUMPTIONS.md for the full discussion.
  */
 
 export interface BoundedConstant {
@@ -126,4 +126,4 @@ export const AVOIDABLE_EFF_TOKENS_DEFAULT: { low: number; high: number } = {
 export const WASTE_PERSIST_TURNS_CAP = 30;
 
 export const ESTIMATE_LABEL =
-  'rough estimate — no first-party figures exist for Claude; see ASSUMPTIONS.md';
+  'rough estimate — no first-party figures exist for Claude; see docs/cli/ASSUMPTIONS.md';

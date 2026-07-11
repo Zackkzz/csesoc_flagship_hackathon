@@ -1,6 +1,6 @@
 # Product — Target Audience & Value
 
-Derived from [`Requirement.md`](../Requirement.md).
+Derived from [`REQUIREMENTS.md`](./REQUIREMENTS.md).
 
 ---
 
