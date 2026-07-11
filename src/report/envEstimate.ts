@@ -17,14 +17,14 @@ import {
 
 /**
  * Environmental estimate (SPEC §7). All conversions use ONLY the bounded
- * constants from constants.ts, and every number is reported as a LOW/HIGH
- * range with the "rough estimate" label — never a single unqualified figure.
+ * constants from the shared core (re-exported by constants.ts), and every
+ * number is reported as a LOW/HIGH range with the "rough estimate" label —
+ * never a single unqualified figure.
  */
 
-export interface Range {
-  low: number;
-  high: number;
-}
+export type { Range } from '../shared/core';
+export { formatRange, formatEnvNumber } from '../shared/core';
+import type { Range } from '../shared/core';
 
 /** Shape of the meta 'baseline' JSON recorded by the heuristics pass. */
 export interface BaselineMeta {
@@ -262,14 +262,3 @@ export function estimateEnvironment(
   };
 }
 
-/** "0.4–1.3 kWh"-style rendering. Always a range, never a bare number. */
-export function formatRange(range: Range, unit: string): string {
-  return `${formatEnvNumber(range.low)}–${formatEnvNumber(range.high)} ${unit}`;
-}
-
-export function formatEnvNumber(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return '0';
-  if (n >= 100) return String(Math.round(n));
-  if (n >= 0.095) return n.toFixed(1);
-  return n.toPrecision(2);
-}

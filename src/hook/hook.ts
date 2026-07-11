@@ -1,5 +1,6 @@
 import type { DB } from '../db';
 import { metaGet, metaSet, openDb } from '../db';
+import { OVERSIZED_PASTE_CHARS } from '../shared/core';
 import type { HookInput } from '../types';
 import { loadEnvFiles } from '../loadEnv';
 import { reviewPromptWithLlm, type PromptReview } from './llm';
@@ -27,8 +28,6 @@ export type PromptReviewer = (prompt: string, cwd: string) => Promise<PromptRevi
 
 /** SPEC §5.4: at most 5 fired nudges per local day. */
 const DAILY_FIRED_CAP = 5;
-/** SPEC §4.3/§5.2: paste-heavy prompt threshold (chars). */
-const OVERSIZED_PASTE_CHARS = 8000;
 const VAGUE_MAX_CHARS = 100;
 const TOPIC_MAX_CHARS = 90;
 const KEYWORD_MIN_CHARS = 5;

@@ -1,19 +1,26 @@
 /**
  * Dashboard Controller for EcoPrompt Scorer
- * Performs client-side telemetry prep, requests AI evaluation, and manages Chart.js components
+ * Performs client-side telemetry prep, requests AI evaluation, and manages Chart.js components.
+ *
+ * All analysis math (filler words, redundancy similarity, environmental
+ * ranges) comes from lib/llmguide-core.js — generated from src/shared/core.ts,
+ * the same logic the CLI uses. Do not re-implement thresholds here.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const core = globalThis.LLMGuideCore;
+
   const apiKeyInput = document.getElementById('api-key-input');
   const saveKeyBtn = document.getElementById('save-api-key-btn');
   const statusBanner = document.getElementById('status-banner');
   const loadingOverlay = document.getElementById('loading-overlay');
-  
+
   const accordionToggle = document.getElementById('accordion-toggle');
   const accordionContent = document.getElementById('accordion-content');
 
-  // Define realistic mock prompts in case extension is opened empty
-  const MOCK_PROMPTS = [
+  // Demonstration prompts shown when the extension is opened with no
+  // scraped data. Never persisted: storage stays real-data-only.
+  const DEMO_PROMPTS = [
     "Hello Gemini, I hope you are having a wonderful day! Could you please help me write a quick function in Node.js? I am trying to build a scraper to get headings from Google, but I'm not really sure how to handle it. Thank you so much!",
     "Hi, I noticed the function you wrote has some style dependencies. Could you please rewrite it without them? Just pure JavaScript, thanks!",
     "Can you write a Node.js script using fetch to crawl headings from google.com, stripping style dependencies, and return JSON arrays?",
@@ -26,8 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     "How do I install the dependencies for this script?"
   ];
 
-  // Static/Mock AI Response for demonstration before API key configuration
-  const MOCK_AI_RESPONSE = {
+  // Sample AI response rendered only in demo mode (no API key). Clearly
+  // labeled as a sample in the UI; never presented as a real audit.
+  const SAMPLE_AI_RESPONSE = {
     final_score: 6.2,
     critique_points: [
       {
@@ -40,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         category: "Content Redundancy",
-        suggestion: "Avoid sending near-identical prompts (prompt 7 is a literal duplicate of prompt 3). Review Jaccard similarity metrics before re-posting."
+        suggestion: "Avoid sending near-identical prompts (prompt 7 is a literal duplicate of prompt 3). Review similarity metrics before re-posting."
       }
     ],
     green_alternative: "Write a Node.js script that fetches 'google.com', extracts h1-h4 headings using fetch/regex (no heavy dependencies), and outputs a raw JSON array."
@@ -76,12 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.get(['recentPrompts', 'gemini_api_key'], (data) => {
       const apiKey = data.gemini_api_key || "";
       let prompts = data.recentPrompts;
+      const isDemoData = !prompts || prompts.length === 0;
 
-      if (!prompts || prompts.length === 0) {
+      if (isDemoData) {
         console.log("No scraped prompts found. Falling back to demonstration prompts.");
-        prompts = MOCK_PROMPTS;
-        // Optionally save mock prompts so content makes sense
-        chrome.storage.local.set({ recentPrompts: MOCK_PROMPTS });
+        prompts = DEMO_PROMPTS;
       }
 
       // 1. Telemetry Prep
@@ -96,20 +103,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 2. Hybrid AI Audit Pass
       if (!apiKey) {
-        showBanner("Using local telemetry scanner. Enter a Gemini API Key to unlock live AI audits.", false);
-        renderAudit(MOCK_AI_RESPONSE, longestPrompt);
+        showBanner(
+          (isDemoData ? "Showing demonstration prompts. " : "") +
+          "Local telemetry only — the audit below is a SAMPLE, not a live result. Enter a Gemini API key for a real audit.",
+          false
+        );
+        renderAudit(SAMPLE_AI_RESPONSE, longestPrompt, true);
       } else {
-        hideBanner();
+        if (isDemoData) {
+          showBanner("No scraped prompts yet — auditing demonstration prompts.", false);
+        } else {
+          hideBanner();
+        }
         loadingOverlay.classList.remove('hidden');
-        
+
         callGeminiAPI(apiKey, prompts, metrics, longestPrompt)
           .then(aiResult => {
-            renderAudit(aiResult, longestPrompt);
+            renderAudit(aiResult, longestPrompt, false);
           })
           .catch(err => {
             console.error(err);
-            showBanner(`AI Scorer connection failed: ${err.message}. Showing local metrics fallback.`, true);
-            renderAudit(MOCK_AI_RESPONSE, longestPrompt);
+            showBanner(`AI Scorer connection failed: ${err.message}. Showing SAMPLE audit as fallback.`, true);
+            renderAudit(SAMPLE_AI_RESPONSE, longestPrompt, true);
           })
           .finally(() => {
             loadingOverlay.classList.add('hidden');
@@ -119,45 +134,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Step 1: Telemetry Prep calculations
+   * Step 1: Telemetry Prep calculations (shared-core math).
    */
   function calculateMetrics(prompts) {
     let fillerCount = 0;
     let charCount = 0;
     let redundancyCount = 0;
-    
-    const fillerWordsList = [
-      "please", "could you", "would you", "thank you", "thanks", 
-      "hello", "hi", "just", "basically", "actually", "kindly", 
-      "sorry", "would you mind", "pls", "thx"
-    ];
-
-    const promptWordLists = [];
+    let redundantChars = 0;
 
     prompts.forEach((prompt, index) => {
       charCount += prompt.length;
-      
-      const words = prompt.toLowerCase()
-        .replace(/[^\w\s]/g, '')
-        .split(/\s+/)
-        .filter(w => w.length > 0);
-      
-      promptWordLists.push(words);
+      fillerCount += core.countFillerWords(prompt);
 
-      // Count filler words
-      words.forEach(w => {
-        if (fillerWordsList.includes(w)) {
-          fillerCount++;
-        }
-      });
-
-      // Check Jaccard similarity against immediately preceding prompt
-      if (index > 0) {
-        const prevWords = promptWordLists[index - 1];
-        const jaccard = getJaccardSimilarity(words, prevWords);
-        if (jaccard > 0.45) { // 45% or more Jaccard overlap
-          redundancyCount++;
-        }
+      // Rework loop: this prompt largely restates the immediately preceding
+      // one (word-bag Jaccard, same signal family as the CLI's shingle check).
+      if (index > 0 && core.wordBagSimilarity(prompt, prompts[index - 1]) > core.REWORK_SIMILARITY) {
+        redundancyCount++;
+        redundantChars += prompt.length;
       }
     });
 
@@ -165,24 +158,17 @@ document.addEventListener('DOMContentLoaded', () => {
       promptsCount: prompts.length,
       fillerCount,
       charCount,
-      redundancyCount
+      redundancyCount,
+      redundantChars
     };
   }
 
   /**
-   * Jaccard index similarity of two word bags.
-   */
-  function getJaccardSimilarity(wordsA, wordsB) {
-    if (wordsA.length === 0 || wordsB.length === 0) return 0;
-    const setA = new Set(wordsA);
-    const setB = new Set(wordsB);
-    const intersection = new Set([...setA].filter(x => setB.has(x)));
-    const union = new Set([...setA, ...setB]);
-    return intersection.size / union.size;
-  }
-
-  /**
-   * Update metrics cards and carbon/water matrix.
+   * Update metrics cards and the environmental estimate.
+   *
+   * Environmental math mirrors the CLI (SPEC §7): tokens are converted with
+   * the sourced bounded constants from the shared core, and every figure is
+   * a LOW–HIGH range labeled a rough estimate — never a single number.
    */
   function updateTelemetryUI(metrics, prompts) {
     document.getElementById('stat-prompts-count').textContent = metrics.promptsCount;
@@ -190,57 +176,63 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stat-token-count').textContent = metrics.charCount;
     document.getElementById('stat-redundancy-count').textContent = metrics.redundancyCount;
 
-    // Eco Computations (scaled per 100 turns)
-    const scale = prompts.length > 0 ? (100 / prompts.length) : 10;
-    
-    // Grid Energy conservation estimation:
-    // Every redundancy Jaccard loop saves ~4.2 Wh, every filler word parsed saves ~0.15 Wh
-    const energySaved = (metrics.fillerCount * 0.15 + metrics.redundancyCount * 4.2) * scale;
-    
-    // Server Cooling Water saved:
-    // Every Jaccard loop takes ~12 ml (0.012L) of water, each filler word ~0.5 ml (0.0005L)
-    const waterSaved = (metrics.fillerCount * 0.0005 + metrics.redundancyCount * 0.012) * scale;
+    // Waste that trimming would avoid: ~1 token per filler word, plus the
+    // full token load of prompts that were near-duplicates of their
+    // predecessor.
+    const savedTokens = metrics.fillerCount +
+      Math.round(metrics.redundantChars / core.APPROX_CHARS_PER_TOKEN);
+    const energyKwh = core.energyRangeKwh(savedTokens);
+    const water = core.waterRangesL(energyKwh);
+    const energyWh = { low: energyKwh.low * 1000, high: energyKwh.high * 1000 };
 
-    document.getElementById('sustain-water').textContent = `${waterSaved.toFixed(3)} L`;
-    document.getElementById('sustain-energy').textContent = `${energySaved.toFixed(2)} Wh`;
+    document.getElementById('sustain-water').textContent = core.formatRange(water.onsite, 'L');
+    document.getElementById('sustain-energy').textContent = core.formatRange(energyWh, 'Wh');
 
-    const narrative = `By cutting out ${metrics.fillerCount} filler word(s) and Jaccard-redundancies, you prevent unnecessary prompt expansion. Scaling this to 100 turns conserves roughly ${waterSaved.toFixed(3)} Liters of water and ${energySaved.toFixed(2)} Watt-hours of electricity.`;
+    const narrative =
+      `Trimming ${metrics.fillerCount} filler word(s) and ${metrics.redundancyCount} redundant ` +
+      `prompt(s) would avoid roughly ${savedTokens} tokens ≈ ${core.formatRange(energyWh, 'Wh')} of ` +
+      `energy and ${core.formatRange(water.onsite, 'L')} of on-site cooling water ` +
+      `(${core.formatRange(water.lifecycle, 'L')} lifecycle). Rough estimate from literature ranges — ` +
+      `see ASSUMPTIONS.md; these are not measured figures.`;
     document.getElementById('sustain-narrative').textContent = narrative;
 
     // Populate prompts list accordion
     const listContainer = document.getElementById('prompts-list');
     listContainer.innerHTML = '';
-    
+
     prompts.forEach((p, i) => {
       const li = document.createElement('li');
       li.textContent = `[Prompt ${i + 1}]: "${p}"`;
       listContainer.appendChild(li);
     });
-    
+
     document.getElementById('scraped-log-count').textContent = prompts.length;
   }
 
   /**
-   * Step 2: Live AI Scorer utilizing Gemini API gateway
+   * Step 2: Live AI Scorer utilizing Gemini API gateway.
+   * The key travels in the x-goog-api-key header (matching the CLI's
+   * src/hook/llm.ts), never in the URL where it could leak into logs.
    */
   async function callGeminiAPI(apiKey, prompts, metrics, longestPrompt) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
+    const model = core.DEFAULT_MODELS.gemini;
+    const url = `${core.GEMINI_BASE_URL}/models/${encodeURIComponent(model)}:generateContent`;
 
     const promptInstructions = `
       You are an expert AI prompt optimization engine. You are analyzing a sequence of user prompts to evaluate prompt efficiency, scoring habits, and stripping waste from context.
-      
+
       Here is the telemetry data gathered:
       - Recent Prompts: ${JSON.stringify(prompts)}
       - Filler Word Count: ${metrics.fillerCount}
       - Character Count: ${metrics.charCount}
-      - Redundancy Jaccard loops: ${metrics.redundancyCount}
-      
+      - Redundant (near-duplicate) prompts: ${metrics.redundancyCount}
+
       Analyze the prompting pattern. Identify negative habits like:
-      - Rework Loops (asking the same question in multiple slightly different ways Jaccard matching)
+      - Rework Loops (asking the same question in multiple slightly different ways)
       - Context Dumping (providing huge walls of text without clear structure/instructions)
       - Conversational Bloat (excessive filler words like "please", "could you", "thanks")
       - Under-specification (not giving enough constraints, leading to follow-up corrections)
-      
+
       Return a strict, valid JSON object containing exactly these fields (no markdown formatting, no code block backticks):
       {
         "final_score": <number between 1 and 10 representing overall prompting efficiency>,
@@ -262,7 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
       body: JSON.stringify(requestBody)
     });
 
@@ -273,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const data = await response.json();
     const textResult = data.candidates[0].content.parts[0].text;
-    
+
     // Parse result
     return JSON.parse(textResult);
   }
@@ -283,9 +278,9 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   let scoreChart = null;
 
-  function renderAudit(result, longestPrompt) {
+  function renderAudit(result, longestPrompt, isSample) {
     const finalScore = result.final_score || 0;
-    
+
     // Update Score Chart
     const ctx = document.getElementById('scoreChart').getContext('2d');
     if (scoreChart) {
@@ -309,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trackColor = 'rgba(59, 130, 246, 0.1)';
       ratingBadge = 'Efficient';
     }
+    if (isSample) ratingBadge += ' (sample)';
 
     scoreChart = new Chart(ctx, {
       type: 'doughnut',
@@ -356,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
       result.critique_points.forEach(point => {
         const li = document.createElement('li');
         li.className = 'feedback-item';
-        
+
         // Severity classification
         let badgeClass = 'badge-warning';
         if (point.category.toLowerCase().includes('loop') || point.category.toLowerCase().includes('redundancy')) {
@@ -366,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         li.innerHTML = `
           <div class="feedback-title">
             <span class="feedback-badge ${badgeClass}">${point.category}</span>
-            <span>Habit Identified</span>
+            <span>${isSample ? 'Sample Habit (demo)' : 'Habit Identified'}</span>
           </div>
           <p class="feedback-text">${point.suggestion}</p>
         `;

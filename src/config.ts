@@ -6,6 +6,7 @@ import {
   providerApiKey as storedProviderApiKey,
   storedLlmProvider,
 } from './credentials';
+import { DEFAULT_MODELS, GEMINI_BASE_URL } from './shared/core';
 
 /**
  * All filesystem locations and environment lookups in one place.
@@ -77,7 +78,7 @@ export interface HookLlmConfig {
 }
 
 /** Default low-cost model for hosted transcript and prompt analysis. */
-export const DEFAULT_LLM_MODEL = 'claude-haiku-4-5';
+export const DEFAULT_LLM_MODEL = DEFAULT_MODELS.anthropic;
 
 function resolveHookLlmProvider(): HookLlmProvider {
   const requested = (
@@ -128,16 +129,13 @@ function providerApiKey(provider: HookLlmProvider): string | undefined {
 }
 
 function defaultModel(provider: HookLlmProvider): string {
-  if (provider === 'anthropic') return DEFAULT_LLM_MODEL;
-  if (provider === 'openai') return 'gpt-5.4-nano';
-  if (provider === 'gemini') return 'gemini-2.5-flash';
-  return 'composer-2.5';
+  return DEFAULT_MODELS[provider];
 }
 
 function defaultBaseUrl(provider: HookLlmProvider): string {
   if (provider === 'anthropic') return 'https://api.anthropic.com/v1';
   if (provider === 'openai') return 'https://api.openai.com/v1';
-  if (provider === 'gemini') return 'https://generativelanguage.googleapis.com/v1beta/openai';
+  if (provider === 'gemini') return `${GEMINI_BASE_URL}/openai`;
   // Cursor native paths do not use an OpenAI-style base URL unless the user
   // points TOKENLEAN_LLM_BASE_URL / LLMGUIDE_LLM_BASE_URL at a proxy.
   return '';

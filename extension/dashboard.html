@@ -12,6 +12,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="css/dashboard.css">
   <script src="lib/chart.min.js" defer></script>
+  <script src="lib/llmguide-core.js" defer></script>
   <script src="js/dashboard.js" defer></script>
 </head>
 
@@ -110,26 +111,27 @@
           <!-- Carbon/Water Equivalence Matrix -->
           <div class="dashboard-card sustain-card">
             <h2>Computational Impact Matrix</h2>
-            <p class="card-desc">Equivalent ecological savings of stripping context waste</p>
+            <p class="card-desc">Rough estimate of what trimming this waste would save, as sourced
+              low–high ranges (see ASSUMPTIONS.md)</p>
             <div class="sustain-metrics-grid">
               <div class="sustain-item">
                 <div class="sustain-icon">💧</div>
                 <div class="sustain-info">
-                  <h3 id="sustain-water">0.000 L</h3>
+                  <h3 id="sustain-water">–</h3>
                   <p>Cooling Water Saved</p>
                 </div>
               </div>
               <div class="sustain-item">
                 <div class="sustain-icon">🔋</div>
                 <div class="sustain-info">
-                  <h3 id="sustain-energy">0.000 Wh</h3>
+                  <h3 id="sustain-energy">–</h3>
                   <p>Grid Energy Conserved</p>
                 </div>
               </div>
             </div>
             <div class="sustain-equivalent-box">
-              <p id="sustain-narrative">By optimizing repetitive structures and stripped filler words, you prevent
-                unnecessary computing steps. Based on 100 conversational turns, this scales up dramatically.</p>
+              <p id="sustain-narrative">Import or scrape prompts to estimate the energy and water that
+                trimming filler and redundancy would save.</p>
             </div>
           </div>
         </div>

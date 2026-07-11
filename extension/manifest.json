@@ -22,7 +22,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Toggle LLMGuide on this page",
+    "default_title": "LLMGuide",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -46,7 +46,7 @@
         "https://copilot.microsoft.com/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["lib/llmguide-core.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

@@ -31,6 +31,14 @@
   const root = host.attachShadow({ mode: "open" });
   const logoUrl = chrome.runtime.getURL("icons/llmguide-logo.png");
 
+  // Shared analysis logic from extension/lib/llmguide-core.js (generated from
+  // src/shared/core.ts — the same functions the CLI uses). The manifest and
+  // background.js both inject the lib before this file.
+  const { analyzePromptText, structurePrompt, collectPrompts } = globalThis.LLMGuideCore;
+
+  // User prompts extracted from the most recent widget import, held for Re-evaluate.
+  let importedPrompts = [];
+
   const isEditableRoot = (node) => {
     if (!(node instanceof HTMLElement) || host.contains(node)) return false;
     if (node.matches("textarea, input[type='text'], input:not([type])")) return true;
@@ -255,14 +263,27 @@
   };
 
   const localPromptStats = (raw) => {
-    const text = raw.trim();
-    const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
-    const chars = text.length;
+    const analysis = analyzePromptText(raw);
     return {
-      words,
-      chars,
-      approxTokens: Math.max(1, Math.round(chars / 4)),
-      lines: text ? text.split(/\n/).filter((line) => line.trim()).length : 0,
+      words: analysis.words,
+      chars: analysis.chars,
+      approxTokens: analysis.approxTokens,
+      lines: analysis.lines,
+    };
+  };
+
+  // When the bridge is unreachable, fall back to the shared local analyzer —
+  // the same scoring the popup and CLI heuristics use — instead of showing
+  // nothing.
+  const localReview = (raw) => {
+    const analysis = analyzePromptText(raw);
+    const needsImprovement = analysis.score < 8;
+    return {
+      score: analysis.score,
+      needsImprovement,
+      category: "local",
+      feedback: analysis.tips.join(" "),
+      polishedPrompt: needsImprovement ? structurePrompt(raw) : null,
     };
   };
 
@@ -620,9 +641,12 @@
           <article class="card">
             <p class="label">Local transcripts</p>
             <h2>Import JSONL, JSON, or text</h2>
-            <p>Files are parsed locally. Raw transcript text is not uploaded.</p>
+            <p>Files are parsed locally. Re-evaluate opens the audit dashboard,
+              which analyzes your prompts with Gemini using your own key.</p>
             <label class="file">Choose files<input id="files" type="file" accept=".jsonl,.json,.txt" multiple></label>
             <pre id="summary" hidden></pre>
+            <button class="action" id="reevaluate" type="button" disabled>Re-evaluate prompts</button>
+            <div class="status" id="import-status"></div>
           </article>
         </section>
       </div>
@@ -1203,13 +1227,13 @@
     if (!provider) {
       promptStatus.textContent = info.online
         ? "No API key configured for the bridge."
-        : "Start the local bridge first: npx tokenlean extension serve";
+        : "Start the local bridge first: llmguide extension serve";
     }
 
     if (!info.online || !info.configured || !provider) {
       const hint = !info.online
-        ? "Start the local bridge first: npx tokenlean extension serve"
-        : "No API key configured. Add GEMINI_API_KEY to .env, then run: npx tokenlean extension serve";
+        ? "Start the local bridge first: llmguide extension serve"
+        : "No API key configured. Add GEMINI_API_KEY to .env, then run: llmguide extension serve";
       await showPipeline(
         [
           info.online ? "Connected to local bridge" : "Could not reach local bridge",
@@ -1222,10 +1246,10 @@
       if (token !== analysisToken) return false;
       if (!(await swapAnalysisContent(() => {
         renderAnalysis({
-          sourceLabel: "Model review unavailable",
+          sourceLabel: "Local analysis — model review unavailable",
           subtitle: hint,
           stats: localPromptStats(raw),
-          review: null,
+          review: localReview(raw),
           message: hint,
         });
       }, token))) return false;
@@ -1276,9 +1300,9 @@
 
     if (!response?.ok || !response.review) {
       const hint = response?.error === "not_configured"
-        ? "No API key configured. Add GEMINI_API_KEY to .env, then run: npx tokenlean extension serve"
+        ? "No API key configured. Add GEMINI_API_KEY to .env, then run: llmguide extension serve"
         : response?.error === "bridge_unreachable"
-          ? "Start the local bridge first: npx tokenlean extension serve"
+          ? "Start the local bridge first: llmguide extension serve"
           : "Model review unavailable. Check the local bridge and API key, then try again.";
       if (!(await renderCurrentStage(
         { label: `Review failed via ${providerLabel(usedProvider)}`, state: "fail" },
@@ -1289,12 +1313,12 @@
       if (!ok) return false;
       if (!(await swapAnalysisContent(() => {
         renderAnalysis({
-          sourceLabel: `Failed on ${modelLabel(usedModel, usedProvider)} via ${providerLabel(usedProvider)}`,
+          sourceLabel: `Local analysis — failed on ${modelLabel(usedModel, usedProvider)} via ${providerLabel(usedProvider)}`,
           subtitle: hint,
           stats,
           provider: usedProvider,
           model: usedModel,
-          review: null,
+          review: localReview(raw),
           message: hint,
         });
       }, token))) return false;
@@ -1821,40 +1845,65 @@
       return;
     }
     const recentPrompts = prompts.slice(-10);
+    // Storing recentPrompts triggers the background storage listener, which
+    // opens the dashboard — the single open path shared with popup Import.
     chrome.storage.local.set({ recentPrompts }, () => {
       if (chrome.runtime.lastError) {
         if (inspectStatus) inspectStatus.textContent = chrome.runtime.lastError.message;
         return;
       }
       if (inspectStatus) inspectStatus.textContent = "Opening dashboard…";
-      chrome.runtime.sendMessage({ action: "open_dashboard" });
     });
   };
 
   root.querySelector("#files").onchange = async (event) => {
+    const importStatus = root.querySelector("#import-status");
+    const reevaluateBtn = root.querySelector("#reevaluate");
     const files = [...event.target.files];
     let records = 0, malformed = 0, turns = 0, characters = 0;
+    const prompts = [];
     for (const file of files) {
       const text = await file.text();
       characters += text.length;
-      const entries = file.name.endsWith(".jsonl") ? text.split(/\r?\n/).filter(Boolean) : [text];
+      const isJsonl = file.name.endsWith(".jsonl");
+      const isTxt = file.name.endsWith(".txt");
+      const entries = isJsonl ? text.split(/\r?\n/).filter(Boolean) : [text];
       for (const entry of entries) {
         try {
           const value = JSON.parse(entry);
-          const items = Array.isArray(value) ? value : [value];
-          records += items.length;
-          for (const item of items) if (item?.role || item?.message?.role) turns++;
+          records += Array.isArray(value) ? value.length : 1;
+          const collected = collectPrompts(value);
+          prompts.push(...collected.prompts);
+          turns += collected.turns;
         } catch {
-          if (!file.name.endsWith(".txt")) malformed++;
+          if (isTxt) prompts.push(text.trim());
+          else malformed++;
         }
       }
     }
+    importedPrompts = prompts;
     await chrome.storage.local.set({
-      transcriptSummary: { files:files.length, records, malformed, turns, characters, importedAt:Date.now() },
+      transcriptSummary: { files: files.length, records, malformed, turns, characters, importedAt: Date.now() },
     });
     const summary = root.querySelector("#summary");
     summary.hidden = false;
-    summary.textContent = `Files: ${files.length}\nParsed records: ${records}\nDetected turns: ${turns}\nMalformed records skipped: ${malformed}\nCharacters read locally: ${characters.toLocaleString()}`;
+    summary.textContent = `Files: ${files.length}\nParsed records: ${records}\nDetected turns: ${turns}\nUser prompts found: ${prompts.length}\nMalformed records skipped: ${malformed}\nCharacters read locally: ${characters.toLocaleString()}`;
+    reevaluateBtn.disabled = prompts.length === 0;
+    importStatus.textContent = prompts.length
+      ? `${prompts.length} prompt(s) ready. Click Re-evaluate to open the audit.`
+      : "No user prompts found in these files.";
+  };
+
+  // Re-evaluate: publish the imported prompts as recentPrompts; the background
+  // storage listener opens the audit dashboard — same pipeline as Inspect.
+  root.querySelector("#reevaluate").onclick = async () => {
+    const importStatus = root.querySelector("#import-status");
+    if (!importedPrompts.length) {
+      importStatus.textContent = "Import a transcript with user prompts first.";
+      return;
+    }
+    importStatus.textContent = "Opening audit dashboard…";
+    await chrome.storage.local.set({ recentPrompts: importedPrompts });
   };
 
   void refreshBridgeInfo();

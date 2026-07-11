@@ -1,25 +1,12 @@
 import type { DB } from '../db';
 import { metaGet, metaSetJson } from '../db';
 import { CACHED_READ_WEIGHT } from '../constants';
+import { jaccard, shingles, RESUPPLIED_SIMILARITY } from '../shared/core';
 import type { HeuristicsResult } from '../types';
 
 const CORRECTION = /^(?:no\b|actually\b|that's wrong\b|that is wrong\b|undo\b|i meant\b|not what i meant\b|please revert\b)/i;
 const DAY = 86_400_000;
 const snippet = (text: string): string => text.replace(/\s+/g, ' ').trim().slice(0, 200);
-
-function shingles(text: string): Set<string> {
-  const words = text.toLowerCase().replace(/[^a-z0-9_./-]+/g, ' ').trim().split(/\s+/);
-  const out = new Set<string>();
-  for (let i = 0; i <= words.length - 5; i++) out.add(words.slice(i, i + 5).join(' '));
-  return out;
-}
-
-function similarity(a: Set<string>, b: Set<string>): number {
-  if (!a.size || !b.size) return 0;
-  let overlap = 0;
-  for (const item of a) if (b.has(item)) overlap++;
-  return overlap / (a.size + b.size - overlap);
-}
 
 export function runHeuristics(db: DB, opts?: { log?: (msg: string) => void }): HeuristicsResult {
   const sessions = db.prepare('SELECT id, project FROM sessions ORDER BY id').all() as {
@@ -87,7 +74,7 @@ export function runHeuristics(db: DB, opts?: { log?: (msg: string) => void }): H
       if (used.has(i)) continue;
       const cluster = [i];
       for (let j = i + 1; j < prompts.length; j++) {
-        if (prompts[i].project === prompts[j].project && similarity(prompts[i].set, prompts[j].set) >= 0.75) cluster.push(j);
+        if (prompts[i].project === prompts[j].project && jaccard(prompts[i].set, prompts[j].set) >= RESUPPLIED_SIMILARITY) cluster.push(j);
       }
       const ids = [...new Set(cluster.map(k => prompts[k].session_id))];
       if (ids.length < 3) continue;

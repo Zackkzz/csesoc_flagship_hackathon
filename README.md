@@ -193,20 +193,27 @@ as the CLI hook:
 
 ```text
 # .env with GEMINI_API_KEY (or ANTHROPIC / OPENAI / CURSOR), or llmguide config set-key
-npx tokenlean extension serve
+llmguide extension serve
 ```
 
 The extension can then:
 
 - review selected prompt text with that model after you click Analyze;
 - show a score and advice, plus a suggested rewrite only when needed;
+- fall back to a fully local analysis (same rules as the CLI heuristics)
+  when the bridge is offline;
 - run the Gemini deep prompt-efficiency audit / dashboard from Inspect;
 - import JSONL, JSON, or text transcripts locally.
 
-It never submits a prompt to the chat site. Imported raw transcript text is not
-uploaded; only a small aggregate summary is stored in extension storage. Model
-review sends the selected prompt to your configured provider through the local
-bridge on `127.0.0.1:8787`.
+It never submits a prompt to the chat site. Model review sends the selected
+prompt to your configured provider through the local bridge on
+`127.0.0.1:8787`. Imported files are parsed locally; the optional Re-evaluate
+button sends the extracted prompts to the Gemini audit dashboard, which uses
+your own Gemini key. Skip Deep Audit and Re-evaluate for fully local use.
+
+The extension and the CLI share one analysis core (`src/shared/core.ts`).
+The committed bundle `extension/lib/llmguide-core.js` is generated from it
+with `npm run build:extension-core`; do not edit the bundle by hand.
 
 ## Privacy and cost
 
