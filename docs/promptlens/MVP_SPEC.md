@@ -1,6 +1,6 @@
 # MVP Specification
 
-Traceability to [`Requirement.md`](../Requirement.md) Key Features.  
+Traceability to [`REQUIREMENTS.md`](./REQUIREMENTS.md) Key Features.  
 **Locked decisions:** Q1=D · Q2=D · Q3=C · Stack R.  
 **Scope change:** low-information **token strip middleware is out of MVP**.
 

@@ -1,6 +1,6 @@
 # PromptLens — One-Page Brief
 
-**From:** [`Requirement.md`](../Requirement.md)  
+**From:** [`REQUIREMENTS.md`](./REQUIREMENTS.md)  
 **Decisions locked:** Q1=D · Q2=D · Q3=C · Stack R  
 **Scope note:** Context token-stripping middleware is **out of MVP**.
 

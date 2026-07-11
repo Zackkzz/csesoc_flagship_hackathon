@@ -1,6 +1,6 @@
 # Technical Architecture
 
-Per [`Requirement.md`](../Requirement.md) Immediate Instructions §3.
+Per [`REQUIREMENTS.md`](./REQUIREMENTS.md) Immediate Instructions §3.
 
 **Clarifying answers locked:** Q1=D, Q2=D, Q3=C — see [`CLARIFYING_QUESTIONS.md`](CLARIFYING_QUESTIONS.md).  
 **Stack:** R (FastAPI + React + SQLite) — see [`TECH_STACKS.md`](TECH_STACKS.md).  

@@ -10,9 +10,10 @@ node_modules/
 **/.pytest_cache/
 *.egg-info/
 
-# Env
+# Env / secrets
 .env
 .env.local
+.openai/
 
 # Databases
 apps/api/promptlens.db
@@ -22,18 +23,16 @@ apps/api/*.db
 *.sqlite-wal
 *.sqlite-shm
 
-# tokenlean
+# Local CLI state
 .tokenlean/
-.env
-.env.local
+.llmguide/
 CLAUDE.md.suggested
 
-# Build output
+# Build / tooling output
 dist/
 .vinext/
 .wrangler/
 
-# OS
+# OS / editor
 .DS_Store
 .idea/
-*.DS_Store

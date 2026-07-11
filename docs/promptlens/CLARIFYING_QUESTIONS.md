@@ -1,6 +1,6 @@
 # Clarifying Questions — LOCKED
 
-Per [`Requirement.md`](../Requirement.md) Immediate Instructions §1.
+Per [`REQUIREMENTS.md`](./REQUIREMENTS.md) Immediate Instructions §1.
 
 **Answered:** 2026-07-10  
 **Team choices:** `Q1=D`, `Q2=D`, `Q3=C`
