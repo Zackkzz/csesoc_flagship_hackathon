@@ -10,3 +10,4 @@ CLAUDE.md.suggested
 .DS_Store
 .vinext/
 .wrangler/
+.idea/

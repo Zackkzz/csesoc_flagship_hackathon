@@ -258,9 +258,8 @@
             <article class="card">
               <p class="label">ACTIVE PAGE</p>
               <h2>Inspect visible context</h2>
-              <p>Reads a bounded sample only after you click.</p>
-              <button class="action" id="inspect-page" type="button">Inspect this page</button>
-              <pre id="inspection" hidden></pre>
+              <p>Scrape your recent activity on Gemini to generate a comprehensive prompt efficiency report.</p>
+              <button class="action" id="inspect-page" type="button">Run Deep Prompt Efficiency Audit</button>
             </article>
           </section>
           <section class="panel" id="import">
@@ -580,14 +579,38 @@
   };
 
   root.querySelector("#inspect-page").onclick = () => {
-    const output = root.querySelector("#inspection");
-    output.hidden = false;
-    const headings = [...document.querySelectorAll("h1,h2,h3")]
-      .filter((node) => !host.contains(node)).slice(0, 12)
-      .map((node) => node.innerText.trim()).filter(Boolean);
-    const text = (document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 2800);
-    const fields = document.querySelectorAll("textarea,input[type='text'],[contenteditable='true']").length;
-    output.textContent = `Title: ${document.title}\nURL: ${location.href}\nEditable fields: ${fields}\nHeadings: ${headings.join(" · ") || "None"}\n\nVisible text sample:\n${text || "None"}`;
+    if (!location.href.includes("gemini.google.com")) {
+      alert("Deep prompt auditing is currently optimized exclusively for Gemini. Please open a Gemini chat window to run this analysis.");
+      return;
+    }
+
+    const selectors = {
+      userPrompts: 'user-query, .query-text, .user-message, div[data-message-author="user"]',
+      userPromptsFallback: 'div.query-content, div.user-query, .query-content'
+    };
+    
+    let promptElements = Array.from(document.querySelectorAll(selectors.userPrompts));
+    if (promptElements.length === 0) {
+      promptElements = Array.from(document.querySelectorAll(selectors.userPromptsFallback));
+    }
+    
+    const prompts = promptElements
+      .map(el => el.innerText.replace(/\s+/g, ' ').trim())
+      .filter(text => text.length > 0);
+      
+    if (prompts.length === 0) {
+      alert("No user prompts found on the page yet. Please write a prompt to Gemini first!");
+      return;
+    }
+
+    const recentPrompts = prompts.slice(-10);
+    chrome.storage.local.set({ recentPrompts: recentPrompts }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Storage error:", chrome.runtime.lastError.message);
+        return;
+      }
+      chrome.runtime.sendMessage({ action: "open_dashboard" });
+    });
   };
 
   root.querySelector("#files").onchange = async (event) => {
@@ -603,7 +626,7 @@
           const items = Array.isArray(value) ? value : [value];
           records += items.length;
           for (const item of items) if (item?.role || item?.message?.role) turns++;
-        } catch {
+        } catch (e) {
           if (!file.name.endsWith(".txt")) malformed++;
         }
       }
@@ -616,7 +639,59 @@
     summary.textContent = `Files: ${files.length}\nParsed records: ${records}\nDetected turns: ${turns}\nMalformed records skipped: ${malformed}\nCharacters read locally: ${characters.toLocaleString()}`;
   };
 
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type === "TOKENLEAN_TOGGLE") host.hidden = !host.hidden;
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === "TOKENLEAN_TOGGLE") {
+      host.hidden = !host.hidden;
+      sendResponse({ success: true, hidden: host.hidden });
+    } else if (message?.action === "read_prompt") {
+      const selected = findSelectedPromptField();
+      const text = selected ? selected.text : (lastEditable ? readEditable(lastEditable) : "");
+      sendResponse({ success: true, text: text });
+    } else if (message?.action === "insert_prompt") {
+      const value = message.value;
+      if (lastEditable && document.contains(lastEditable)) {
+        lastEditable.focus();
+        if (lastEditable.isContentEditable || lastEditable.getAttribute("contenteditable") != null) {
+          lastEditable.innerText = value;
+          lastEditable.dispatchEvent(new InputEvent("input", { bubbles: true, data: value }));
+        } else {
+          const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(lastEditable), "value")?.set;
+          setter ? setter.call(lastEditable, value) : (lastEditable.value = value);
+          lastEditable.dispatchEvent(new Event("input", { bubbles: true }));
+          lastEditable.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: "No editable field focused on page." });
+      }
+    } else if (message?.action === "harvest_prompts") {
+      const selectors = {
+        userPrompts: 'user-query, .query-text, .user-message, div[data-message-author="user"]',
+        userPromptsFallback: 'div.query-content, div.user-query, .query-content'
+      };
+      
+      let promptElements = Array.from(document.querySelectorAll(selectors.userPrompts));
+      if (promptElements.length === 0) {
+        promptElements = Array.from(document.querySelectorAll(selectors.userPromptsFallback));
+      }
+      
+      const prompts = promptElements
+        .map(el => el.innerText.replace(/\s+/g, ' ').trim())
+        .filter(text => text.length > 0);
+        
+      if (prompts.length === 0) {
+        sendResponse({ success: false, error: "No prompts found on the page yet." });
+      } else {
+        const recentPrompts = prompts.slice(-10);
+        chrome.storage.local.set({ recentPrompts: recentPrompts }, () => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse({ success: true });
+          }
+        });
+      }
+      return true; // Keep channel open for async response
+    }
   });
 })();
