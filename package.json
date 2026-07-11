@@ -1,0 +1,43 @@
+{
+  "name": "tokenlean",
+  "version": "0.1.0",
+  "description": "Measure and reduce wasted Claude Code tokens — offline analyzer, live coaching hook, read-only usage proxy",
+  "license": "MIT",
+  "bin": {
+    "tokenlean": "bin/tokenlean.js"
+  },
+  "main": "dist/cli.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "ASSUMPTIONS.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude-code",
+    "tokens",
+    "efficiency",
+    "sustainability",
+    "anthropic"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "better-sqlite3": "^12.11.1",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
